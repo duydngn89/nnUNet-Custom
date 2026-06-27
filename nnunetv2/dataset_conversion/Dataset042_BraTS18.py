@@ -1,110 +1,109 @@
-import multiprocessing
-import shutil
-
-import SimpleITK as sitk
+import os
+import torch
 import numpy as np
-from tqdm import tqdm
-from batchgenerators.utilities.file_and_folder_operations import *
-from nnunetv2.dataset_conversion.generate_dataset_json import generate_dataset_json
+import SimpleITK as sitk
+from batchgenerators.utilities.file_and_folder_operations import maybe_mkdir_p, join
+
+# -------------------- CHANGE THIS --------------------
+pt_root = "/mnt/sata_disk/archive/BraTS2017_Training_Data"
+# ------------------------------------------------------
+
+task_id = 42
+task_name = "BraTS2017_PT_Regions"
+dataset_name = f"Dataset{task_id:03d}_{task_name}"
+
+# nnUNet RAW PATH
 from nnunetv2.paths import nnUNet_raw
+out_base = join(nnUNet_raw, dataset_name)
+
+imagesTr = join(out_base, "imagesTr")
+labelsTr = join(out_base, "labelsTr")
+maybe_mkdir_p(imagesTr)
+maybe_mkdir_p(labelsTr)
 
 
-def copy_BraTS_segmentation_and_convert_labels_to_nnUNet(in_file: str, out_file: str) -> None:
-    # use this for segmentation only!!!
-    # nnUNet wants the labels to be continuous. BraTS is 0, 1, 2, 4 -> we make that into 0, 1, 2, 3
-    img = sitk.ReadImage(in_file)
-    img_npy = sitk.GetArrayFromImage(img)
-
-    uniques = np.unique(img_npy)
-    for u in uniques:
-        if u not in [0, 1, 2, 4]:
-            raise RuntimeError('unexpected label')
-
-    seg_new = np.zeros_like(img_npy)
-    seg_new[img_npy == 4] = 3
-    seg_new[img_npy == 2] = 1
-    seg_new[img_npy == 1] = 2
-    img_corr = sitk.GetImageFromArray(seg_new)
-    img_corr.CopyInformation(img)
-    sitk.WriteImage(img_corr, out_file)
+def save_nifti(array, out_file):
+    img = sitk.GetImageFromArray(array.astype(np.float32))
+    img.SetSpacing((1.0, 1.0, 1.0))  # fake spacing (required)
+    sitk.WriteImage(img, out_file)
 
 
-def convert_labels_back_to_BraTS(seg: np.ndarray):
-    new_seg = np.zeros_like(seg)
-    new_seg[seg == 1] = 2
-    new_seg[seg == 3] = 4
-    new_seg[seg == 2] = 1
-    return new_seg
-
-
-def load_convert_labels_back_to_BraTS(filename, input_folder, output_folder):
-    a = sitk.ReadImage(join(input_folder, filename))
-    b = sitk.GetArrayFromImage(a)
-    c = convert_labels_back_to_BraTS(b)
-    d = sitk.GetImageFromArray(c)
-    d.CopyInformation(a)
-    sitk.WriteImage(d, join(output_folder, filename))
-
-
-def convert_folder_with_preds_back_to_BraTS_labeling_convention(input_folder: str, output_folder: str,
-                                                                num_processes: int = 12):
+def onehot_to_multiclass(lbl):
     """
-    reads all prediction files (nifti) in the input folder, converts the labels back to BraTS convention and saves the
+    lbl: shape (3, D, H, W)
+    channels = [TC, WT, ET]
     """
-    maybe_mkdir_p(output_folder)
-    nii = subfiles(input_folder, suffix='.nii.gz', join=False)
-    with multiprocessing.get_context("spawn").Pool(num_processes) as p:
-        p.starmap(load_convert_labels_back_to_BraTS, zip(nii, [input_folder] * len(nii), [output_folder] * len(nii)))
+    out = np.zeros(lbl.shape[1:], dtype=np.uint8)
+
+    # WT must come first because WT contains TC+ET
+    out[lbl[1] == 1] = 1   # WT
+    out[lbl[0] == 1] = 2   # TC
+    out[lbl[2] == 1] = 3   # ET
+
+    return out
 
 
-if __name__ == '__main__':
-    brats_data_dir = ...
 
-    task_id = 42
-    task_name = "BraTS2018"
+cases = sorted(os.listdir(pt_root))
 
-    foldername = "Dataset%03.0d_%s" % (task_id, task_name)
+for case in cases:
+    case_dir = join(pt_root, case)
+    if not os.path.isdir(case_dir):
+        continue
 
-    # setting up nnU-Net folders
-    out_base = join(nnUNet_raw, foldername)
-    imagestr = join(out_base, "imagesTr")
-    labelstr = join(out_base, "labelsTr")
-    maybe_mkdir_p(imagestr)
-    maybe_mkdir_p(labelstr)
+    mod_file = join(case_dir, f"{case}_modalities.pt")
+    lbl_file = join(case_dir, f"{case}_label.pt")
 
-    case_ids_hgg = subdirs(join(brats_data_dir, "HGG"), prefix='Brats', join=False)
-    case_ids_lgg = subdirs(join(brats_data_dir, "LGG"), prefix="Brats", join=False)
+    
 
-    print("copying hggs")
-    for c in tqdm(case_ids_hgg):
-        shutil.copy(join(brats_data_dir, "HGG", c, c + "_t1.nii"), join(imagestr, c + '_0000.nii'))
-        shutil.copy(join(brats_data_dir, "HGG", c, c + "_t1ce.nii"), join(imagestr, c + '_0001.nii'))
-        shutil.copy(join(brats_data_dir, "HGG", c, c + "_t2.nii"), join(imagestr, c + '_0002.nii'))
-        shutil.copy(join(brats_data_dir, "HGG", c, c + "_flair.nii"), join(imagestr, c + '_0003.nii'))
+    if not os.path.exists(mod_file) or not os.path.exists(lbl_file):
+        print(f"⚠ Skipping {case}, missing PT files")
+        continue
 
-        copy_BraTS_segmentation_and_convert_labels_to_nnUNet(join(brats_data_dir, "HGG", c, c + "_seg.nii"),
-                                                             join(labelstr, c + '.nii'))
-    print("copying lggs")
-    for c in tqdm(case_ids_lgg):
-        shutil.copy(join(brats_data_dir, "LGG", c, c + "_t1.nii"), join(imagestr, c + '_0000.nii'))
-        shutil.copy(join(brats_data_dir, "LGG", c, c + "_t1ce.nii"), join(imagestr, c + '_0001.nii'))
-        shutil.copy(join(brats_data_dir, "LGG", c, c + "_t2.nii"), join(imagestr, c + '_0002.nii'))
-        shutil.copy(join(brats_data_dir, "LGG", c, c + "_flair.nii"), join(imagestr, c + '_0003.nii'))
+    print(f"Converting {case} ...")
 
-        copy_BraTS_segmentation_and_convert_labels_to_nnUNet(join(brats_data_dir, "LGG", c, c + "_seg.nii"),
-                                                             join(labelstr, c + '.nii'))
+    # Load
+    modalities = torch.load(mod_file, weights_only=False)
+  # shape (4, D, H, W)
+    labels = torch.load(lbl_file, weights_only=False)
+     # shape (3, D, H, W)
 
-    generate_dataset_json(out_base,
-                          channel_names={0: 'T1', 1: 'T1ce', 2: 'T2', 3: 'Flair'},
-                          labels={
-                              'background': 0,
-                              'whole tumor': (1, 2, 3),
-                              'tumor core': (2, 3),
-                              'enhancing tumor': (3,)
-                          },
-                          num_training_cases=(len(case_ids_lgg) + len(case_ids_hgg)),
-                          file_ending='.nii',
-                          regions_class_order=(1, 2, 3),
-                          license='see https://www.synapse.org/#!Synapse:syn25829067/wiki/610863',
-                          reference='see https://www.synapse.org/#!Synapse:syn25829067/wiki/610863',
-                          dataset_release='1.0')
+    modalities = np.asarray(modalities)
+    labels = np.asarray(labels)
+
+    # Save each modality
+    for idx in range(4):
+        out_img = join(imagesTr, f"{case}_{idx:04d}.nii.gz")
+        save_nifti(modalities[idx], out_img)
+
+    # Convert one-hot → integer mask
+    seg = onehot_to_multiclass(labels)
+
+    seg_out = join(labelsTr, f"{case}.nii.gz")
+    save_nifti(seg, seg_out)
+
+
+# -------------------- CREATE DATASET.JSON --------------------
+from nnunetv2.dataset_conversion.generate_dataset_json import generate_dataset_json
+
+generate_dataset_json(
+    out_base,
+    channel_names={0: "Flair", 1: "T1", 2: "T1ce", 3: "T2"},
+    labels={
+        "background": 0,
+        "whole tumor": (1, 2, 3),
+        "tumor core": (2, 3),
+        "enhancing tumor": (3,)
+    },
+    num_training_cases=len(cases),
+    file_ending=".nii.gz",
+    regions_class_order=(1, 2, 3),
+    dataset_release="converted_from_pt"
+)
+
+print("\n====================================")
+print("✅ Conversion Finished!")
+print("📁 nnUNet dataset at:", out_base)
+print("Run preprocessing:")
+print(f"  nnUNetv2_plan_and_preprocess -d {task_id} -c 3d_fullres")
+print("====================================")

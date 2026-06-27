@@ -1,0 +1,27 @@
+model_name: SegMaFormer
+
+model_parameters:
+  in_channels: 1
+
+  # Balanced anisotropic schedule:
+  # depth  /1 x /2 x /2 x /2 = /8
+  # height /4 x /2 x /2 x /2 = /32
+  # width  /4 x /2 x /2 x /2 = /32
+  sr_ratios: [1, 1, 1, 1]
+  embed_dims: [36, 66, 96, 192]
+  patch_kernel_size: [[1, 7, 7], [3, 3, 3], [3, 3, 3], [3, 3, 3]]
+  patch_stride: [[1, 4, 4], [2, 2, 2], [2, 2, 2], [2, 2, 2]]
+  patch_padding: [[0, 3, 3], [1, 1, 1], [1, 1, 1], [1, 1, 1]]
+  mlp_ratios: [4, 4, 3, 3]
+  num_heads: [1, 2, 4, 6]
+  depths: [2, 2, 1, 1]
+
+  d_state: [8, 4, 4, 4]
+  d_conv: [3, 3, 3, 3]
+  expand: [2, 2, 1, 1]
+  bottleneck: [1.0, 1.0, 1.0, 1.0]
+
+  num_classes: 4
+  decoder_dropout: 0.0
+  decoder_head_embedding_dim: 256
+  deep_supervision: True

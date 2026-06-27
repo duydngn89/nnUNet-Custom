@@ -47,9 +47,17 @@ class nnUNetLogger(object):
 
         # handle the ema_fg_dice special case! It is automatically logged when we add a new mean_fg_dice
         if key == 'mean_fg_dice':
-            new_ema_pseudo_dice = self.my_fantastic_logging['ema_fg_dice'][epoch - 1] * 0.9 + 0.1 * value \
-                if len(self.my_fantastic_logging['ema_fg_dice']) > 0 else value
-            self.log('ema_fg_dice', new_ema_pseudo_dice, epoch)
+            ema_list = self.my_fantastic_logging['ema_fg_dice']
+            
+            # determine previous EMA safely
+            if len(ema_list) >= 1:
+                prev_ema = ema_list[-1]     # safest, never out of bounds
+            else:
+                prev_ema = value            # initialize EMA with first value
+            
+            new_ema = prev_ema * 0.9 + 0.1 * value
+            self.log('ema_fg_dice', new_ema, epoch)
+
 
     def plot_progress_png(self, output_folder):
         # we infer the epoch form our internal logging

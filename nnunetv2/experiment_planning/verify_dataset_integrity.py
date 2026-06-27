@@ -26,19 +26,26 @@ from nnunetv2.utilities.label_handling.label_handling import LabelManager
 from nnunetv2.utilities.utils import get_filenames_of_train_images_and_targets
 
 
-def verify_labels(label_file: str, readerclass: Type[BaseReaderWriter], expected_labels: List[int]) -> bool:
-    rw = readerclass()
-    seg, properties = rw.read_seg(label_file)
-    found_labels = np.sort(pd.unique(seg.ravel()))  # np.unique(seg)
-    unexpected_labels = [i for i in found_labels if i not in expected_labels]
-    if len(found_labels) == 0 and found_labels[0] == 0:
-        print('WARNING: File %s only has label 0 (which should be background). This may be intentional or not, '
-              'up to you.' % label_file)
-    if len(unexpected_labels) > 0:
-        print("Error: Unexpected labels found in file %s.\nExpected: %s\nFound: %s" % (label_file, expected_labels,
-                                                                                       found_labels))
+def verify_labels(label_file: str, reader_writer_class, expected_labels: list) -> bool:
+    try:
+        rw = reader_writer_class()
+        seg, properties = rw.read_seg(label_file)
+
+        uniques = np.unique(seg)
+        for u in uniques:
+            if u not in expected_labels:
+                print(f"[LABEL VALUE ERROR] {label_file}: unexpected label {u}")
+                return False
+        return True
+
+    except Exception as e:
+        print("\n" + "="*80)
+        print("[LABEL READ ERROR]")
+        print(f"File: {label_file}")
+        print(f"Exception type: {type(e)}")
+        print(f"Exception message: {e}")
+        print("="*80 + "\n")
         return False
-    return True
 
 
 def check_cases(image_files: List[str], label_file: str, expected_num_channels: int,
