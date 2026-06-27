@@ -71,10 +71,10 @@ from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
 
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.utilities.plans_handling.plans_handler import ConfigurationManager, PlansManager
-from nnunetv2.training.nnUNetTrainer.network_architecture.nnSegformer3D import build_segmaformer_model_from_yaml
+from nnunetv2.training.nnUNetTrainer.network_architecture.SegMaFormer import build_segmaformer_model_from_yaml
 from torch import nn
 
-class nnSegformerTrainer_BRATS(nnUNetTrainer):
+class SegMaFormerTrainer_BRATS(nnUNetTrainer):
     config_filename = "BRATS_config.yml"
     block_mode = "hybrid"
     stage_block_types = None
@@ -236,24 +236,24 @@ class nnSegformerTrainer_BRATS(nnUNetTrainer):
         return loss
 
 
-class nnSegformerTrainer_BRATS_Hybrid(nnSegformerTrainer_BRATS):
+class SegMaFormerTrainer_BRATS_Hybrid(SegMaFormerTrainer_BRATS):
     block_mode = "hybrid"
 
 
-class nnSegformerTrainer_BRATS_MambaOnly(nnSegformerTrainer_BRATS):
+class SegMaFormerTrainer_BRATS_MambaOnly(SegMaFormerTrainer_BRATS):
     block_mode = "mamba"
 
 
-class nnSegformerTrainer_BRATS_ConvOnly(nnSegformerTrainer_BRATS):
+class SegMaFormerTrainer_BRATS_ConvOnly(SegMaFormerTrainer_BRATS):
     block_mode = "conv"
 
 
-class nnSegformerTrainer_BRATS_RoPEOff(nnSegformerTrainer_BRATS):
+class SegMaFormerTrainer_BRATS_RoPEOff(SegMaFormerTrainer_BRATS):
     rope_enabled = False
 
 
-class nnSegformerTrainer_BRATS_SegFormer3D(nnSegformerTrainer_BRATS):
-    config_filename = "BRATS_config_segformer3d.yml"
+class SegMaFormerTrainer_BRATS_SegMaFormer(SegMaFormerTrainer_BRATS):
+    config_filename = "BRATS_config_segmaformer.yml"
     stage_block_types = ["attention", "attention", "attention", "attention"]
     rope_enabled = False
 
@@ -269,7 +269,7 @@ def _make_stage_mix_trainer(
 ):
     return type(
         class_name,
-        (nnSegformerTrainer_BRATS,),
+        (SegMaFormerTrainer_BRATS,),
         {
             "block_mode": "hybrid",
             "stage_block_types": stage_block_types,
@@ -283,76 +283,76 @@ def _make_stage_mix_trainer(
     )
 
 
-nnSegformerTrainer_BRATS_Stage1Hybrid_Stage234Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Hybrid_Stage234Attention",
+SegMaFormerTrainer_BRATS_Stage1Hybrid_Stage234Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Hybrid_Stage234Attention",
     ["hybrid", "attention", "attention", "attention"],
     sr_ratios_override=[4, 2, 1, 1],
 )
 
-nnSegformerTrainer_BRATS_Stage12Hybrid_Stage34Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage12Hybrid_Stage34Attention",
+SegMaFormerTrainer_BRATS_Stage12Hybrid_Stage34Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage12Hybrid_Stage34Attention",
     ["hybrid", "hybrid", "attention", "attention"],
     sr_ratios_override=[4, 2, 1, 1],
 )
 
-nnSegformerTrainer_BRATS_Stage123Hybrid_Stage4Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage123Hybrid_Stage4Attention",
+SegMaFormerTrainer_BRATS_Stage123Hybrid_Stage4Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage123Hybrid_Stage4Attention",
     ["hybrid", "hybrid", "hybrid", "attention"],
     sr_ratios_override=[4, 2, 1, 1],
 )
 
-nnSegformerTrainer_BRATS_Stage1Mamba_Stage234Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Mamba_Stage234Attention",
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage234Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage234Attention",
     ["mamba", "attention", "attention", "attention"],
     sr_ratios_override=[4, 2, 1, 1],
 )
 
-nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention",
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention",
     ["mamba", "hybrid", "hybrid", "attention"],
 )
 
-nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR",
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR",
     ["mamba", "hybrid", "hybrid", "attention"],
     use_mamba_sr=True,
 )
 
-nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast",
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast",
     ["mamba", "hybrid", "hybrid", "attention"],
     use_mamba_sr=True,
     use_mamba_sr_stages=[True, False, False, False],
     mamba_sr_upsample_mode="nearest",
 )
 
-nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff",
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff",
     ["mamba", "hybrid", "hybrid", "attention"],
     rope_enabled=False,
 )
 
-nnSegformerTrainer_BRATS_Stage12Mamba_Stage3Hybrid_Stage4Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage12Mamba_Stage3Hybrid_Stage4Attention",
+SegMaFormerTrainer_BRATS_Stage12Mamba_Stage3Hybrid_Stage4Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage12Mamba_Stage3Hybrid_Stage4Attention",
     ["mamba", "mamba", "hybrid", "attention"],
 )
 
-nnSegformerTrainer_BRATS_Stage1Mamba_Stage2Hybrid_Stage3Mamba_Stage4Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage1Mamba_Stage2Hybrid_Stage3Mamba_Stage4Attention",
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage2Hybrid_Stage3Mamba_Stage4Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage2Hybrid_Stage3Mamba_Stage4Attention",
     ["mamba", "hybrid", "mamba", "attention"],
 )
 
-nnSegformerTrainer_BRATS_Stage123Mamba_Stage4Attention = _make_stage_mix_trainer(
-    "nnSegformerTrainer_BRATS_Stage123Mamba_Stage4Attention",
+SegMaFormerTrainer_BRATS_Stage123Mamba_Stage4Attention = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage123Mamba_Stage4Attention",
     ["mamba", "mamba", "mamba", "attention"],
 )
 
 
 def _make_brats_replacement_trainer(num_replacements: int):
-    class_name = f"nnSegformerTrainer_BRATS_Replace{num_replacements}Mamba"
+    class_name = f"SegMaFormerTrainer_BRATS_Replace{num_replacements}Mamba"
     return type(
         class_name,
-        (nnSegformerTrainer_BRATS,),
+        (SegMaFormerTrainer_BRATS,),
         {
             "block_mode": "hybrid",
             "num_mamba_replacements": num_replacements,
@@ -362,14 +362,14 @@ def _make_brats_replacement_trainer(num_replacements: int):
 
 
 for _num_replacements in range(7):
-    globals()[f"nnSegformerTrainer_BRATS_Replace{_num_replacements}Mamba"] = _make_brats_replacement_trainer(
+    globals()[f"SegMaFormerTrainer_BRATS_Replace{_num_replacements}Mamba"] = _make_brats_replacement_trainer(
         _num_replacements
     )
 
 
-class nnSegformerTrainer_BRATS_AttentionOnly(nnSegformerTrainer_BRATS_Replace0Mamba):
+class SegMaFormerTrainer_BRATS_AttentionOnly(SegMaFormerTrainer_BRATS_Replace0Mamba):
     sr_ratios_override = [4, 2, 1, 1]
 
 
-class nnSegformerTrainer_BRATS_AllMambaReplacement(nnSegformerTrainer_BRATS_Replace6Mamba):
+class SegMaFormerTrainer_BRATS_AllMambaReplacement(SegMaFormerTrainer_BRATS_Replace6Mamba):
     pass

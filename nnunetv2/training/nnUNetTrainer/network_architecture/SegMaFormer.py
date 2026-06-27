@@ -956,9 +956,9 @@ def build_segmaformer_model_from_yaml(yaml_path, overrides=None):
 
 
 # Backward-compatible aliases for older trainer imports and experiment code.
-SegFormerDecoderHead = SegMaFormerDecoderHead
-SegFormer3D = SegMaFormer
-build_segformer3d_model_from_yaml = build_segmaformer_model_from_yaml
+SegMaFormerDecoderHead = SegMaFormerDecoderHead
+SegMaFormer = SegMaFormer
+build_segmaformer_model_from_yaml = build_segmaformer_model_from_yaml
 
 
 if __name__ == "__main__":

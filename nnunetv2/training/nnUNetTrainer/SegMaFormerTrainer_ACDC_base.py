@@ -11,13 +11,13 @@ from nnunetv2.training.loss.compound_losses import (
 )
 from nnunetv2.training.loss.deep_supervision import DeepSupervisionWrapper
 from nnunetv2.training.loss.dice import MemoryEfficientSoftDiceLoss
-from nnunetv2.training.nnUNetTrainer.network_architecture.nnSegformer3D import (
+from nnunetv2.training.nnUNetTrainer.network_architecture.SegMaFormer import (
     build_segmaformer_model_from_yaml,
 )
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 
 
-class ACDCSegformerTrainerBase(nnUNetTrainer):
+class ACDCSegMaFormerTrainerBase(nnUNetTrainer):
     config_filename = "ACDC_config.yml"
     deep_supervision_weights = np.array([1.0, 0.25, 0.125, 0.125, 0.125], dtype=np.float32)
     block_mode = "hybrid"
@@ -162,4 +162,4 @@ class ACDCSegformerTrainerBase(nnUNetTrainer):
 def _make_acdc_stage_mix_trainer(class_name: str, stage_block_types, **attrs):
     namespace = {"stage_block_types": list(stage_block_types)}
     namespace.update(attrs)
-    return type(class_name, (ACDCSegformerTrainerBase,), namespace)
+    return type(class_name, (ACDCSegMaFormerTrainerBase,), namespace)

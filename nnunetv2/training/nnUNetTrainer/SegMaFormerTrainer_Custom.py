@@ -71,24 +71,13 @@ from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
 
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.utilities.plans_handling.plans_handler import ConfigurationManager, PlansManager
-from nnunetv2.training.nnUNetTrainer.network_architecture.nnSegformer3D import build_segmaformer_model_from_yaml
+from nnunetv2.training.nnUNetTrainer.network_architecture.SegMaFormer import build_segmaformer_model_from_yaml
 from torch import nn
 
-class nnSegformerTrainer(nnUNetTrainer):
-    config_filename = "BCTV_config.yml"
-    block_mode = "hybrid"
-    stage_block_types = None
-    rope_enabled = True
-    use_mamba_sr = False
-    use_mamba_sr_stages = None
-    mamba_sr_upsample_mode = None
-    sr_ratios_override = None
-    num_mamba_replacements = None
-    replacement_block_mode = "mamba"
+class SegMaFormerTrainer_Custom(nnUNetTrainer):
     
-    @classmethod
+    @staticmethod
     def build_network_architecture(
-        cls,
         network_arch_class_name,
         network_arch_init_kwargs,
         network_arch_init_kwargs_req_import,
@@ -117,46 +106,17 @@ class nnSegformerTrainer(nnUNetTrainer):
             os.path.dirname(__file__),
             "network_architecture",
             "configs",
-            cls.config_filename,
+            "BONES_config.yml",
         )
         if not os.path.exists(config_path):
-            config_path = os.path.join(os.path.dirname(__file__), "configs", cls.config_filename)
+            config_path = os.path.join(os.path.dirname(__file__), "configs", "BCTV_config.yml")
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"SegMaFormer config not found: {config_path}")
 
         print(f"🔧 [SegMaFormer] Loading config from: {config_path}")
-        print(f"🔧 [SegMaFormer] BTCV ablation mode: {cls.block_mode}")
-        if cls.stage_block_types is not None:
-            print(f"🔧 [SegMaFormer] Explicit stage block types: {cls.stage_block_types}")
-        print(f"🔧 [SegMaFormer] RoPE enabled: {cls.rope_enabled}")
-        print(f"🔧 [SegMaFormer] Mamba SR enabled: {cls.use_mamba_sr}")
-        if cls.use_mamba_sr_stages is not None:
-            print(f"🔧 [SegMaFormer] Mamba SR stages: {cls.use_mamba_sr_stages}")
-        if cls.mamba_sr_upsample_mode is not None:
-            print(f"🔧 [SegMaFormer] Mamba SR upsample mode: {cls.mamba_sr_upsample_mode}")
-        if cls.sr_ratios_override is not None:
-            print(f"🔧 [SegMaFormer] Attention sr_ratios override: {cls.sr_ratios_override}")
-        if cls.num_mamba_replacements is not None:
-            print(
-                f"🔧 [SegMaFormer] Attention->Mamba replacements: {cls.num_mamba_replacements} "
-                f"using mode={cls.replacement_block_mode}"
-            )
-
-        overrides = {
-            "block_mode": cls.block_mode,
-            "stage_block_types": cls.stage_block_types,
-            "use_rope": cls.rope_enabled,
-            "use_mamba_sr": cls.use_mamba_sr,
-            "use_mamba_sr_stages": cls.use_mamba_sr_stages,
-            "mamba_sr_upsample_mode": cls.mamba_sr_upsample_mode,
-            "sr_ratios": cls.sr_ratios_override,
-            "num_mamba_replacements": cls.num_mamba_replacements,
-            "replacement_block_mode": cls.replacement_block_mode,
-        }
-        overrides = {key: value for key, value in overrides.items() if value is not None}
 
         # Build model from YAML
-        model = build_segmaformer_model_from_yaml(config_path, overrides=overrides)
+        model = build_segmaformer_model_from_yaml(config_path)
 
         
 
@@ -190,8 +150,6 @@ class nnSegformerTrainer(nnUNetTrainer):
                     "smooth": 1e-5,
                     "ddp": self.is_ddp,
                 },
-                weight_ce=0.2,
-                weight_dice=0.8,
                 use_ignore_label=self.label_manager.ignore_label is not None,
                 dice_class=MemoryEfficientSoftDiceLoss,
             )
@@ -204,8 +162,8 @@ class nnSegformerTrainer(nnUNetTrainer):
                     "ddp": self.is_ddp,
                 },
                 {},
-                weight_ce=1.0,
-                weight_dice=1.0,
+                weight_ce=0.3,
+                weight_dice=0.7,
                 ignore_label=self.label_manager.ignore_label,
                 dice_class=MemoryEfficientSoftDiceLoss,
             )
@@ -232,15 +190,3 @@ class nnSegformerTrainer(nnUNetTrainer):
             loss = DeepSupervisionWrapper(loss, weights)
 
         return loss
-
-
-class nnSegformerTrainer_BTCV_Legacy(nnSegformerTrainer):
-    config_filename = "BCTV_config_legacy.yml"
-
-
-class nnSegformerTrainer_BTCV_Fixed(nnSegformerTrainer):
-    config_filename = "BCTV_config_fixed.yml"
-
-
-class nnSegformerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed(nnSegformerTrainer_BTCV_Fixed):
-    stage_block_types = ["mamba", "hybrid", "hybrid", "attention"]
