@@ -289,17 +289,17 @@ CUDA_VISIBLE_DEVICES=0 nnUNetv2_train 42 3d_fullres 0 \
 Training outputs are written to:
 
 ```bash
-${nnUNet_results}/DatasetXXX_NAME/TRAINER__PLANS__3d_fullres/fold_0
+${nnUNet_results}/DatasetXXX_NAME/TRAINER__PLANS__3d_fullres/
 ```
 
 Examples:
 
 ```bash
-nnUNet_results/Dataset042_BraTS2017/SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention__nnUNetPlans__3d_fullres/fold_0
+nnUNet_results/Dataset042_BraTS2017/SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention__nnUNetPlans__3d_fullres/
 
-nnUNet_results/Dataset027_ACDC/SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed__nnUNetPlans__3d_fullres/fold_0
+nnUNet_results/Dataset027_ACDC/SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed__nnUNetPlans__3d_fullres/
 
-nnUNet_results/Dataset001_BTCV/SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed__nnUNetPlans__3d_fullres/fold_0
+nnUNet_results/Dataset001_BTCV/SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed__nnUNetPlans__3d_fullres/
 ```
 
 Useful files:
