@@ -107,8 +107,6 @@ def _build_encoder_block(
     d_conv: int,
     expand: int,
     mlp_ratio: int,
-    use_mamba_sr: bool,
-    mamba_sr_upsample_mode: str,
 ):
     block_type = _normalize_encoder_block_type(block_type)
     if block_type == "attention":
@@ -124,8 +122,6 @@ def _build_encoder_block(
         expand=expand,
         mlp_ratio=mlp_ratio,
         block_mode=block_type,
-        use_mamba_sr=use_mamba_sr,
-        mamba_sr_upsample_mode=mamba_sr_upsample_mode,
     )
 
 
@@ -155,16 +151,6 @@ def _normalize_sr_ratio(sr_ratio):
         return ratio
 
     raise ValueError(f"Expected sr_ratio as int or 3D tuple/list, got {sr_ratio}.")
-
-
-def _normalize_stage_bool_flags(flags, num_stages: int, name: str):
-    if flags is None:
-        return tuple(False for _ in range(num_stages))
-    if isinstance(flags, bool):
-        return tuple(bool(flags) for _ in range(num_stages))
-    if isinstance(flags, (tuple, list)) and len(flags) == num_stages:
-        return tuple(bool(v) for v in flags)
-    raise ValueError(f"Expected {name} as bool or length-{num_stages} list/tuple, got {flags}.")
 
 
 class AuxiliaryHead3D(nn.Module):
@@ -471,16 +457,12 @@ class MambaBlock3D(nn.Module):
         dropout=0.0,
         layer_scale_init=1e-4,
         block_mode="hybrid",
-        use_mamba_sr=False,
-        mamba_sr_upsample_mode="trilinear",
     ):
         super().__init__()
         self.block_mode = _normalize_block_mode(block_mode)
         self.sr_ratio = _normalize_sr_ratio(sr_ratio)
         self.use_sr = any(v > 1 for v in self.sr_ratio)
         self.use_prereduce = self.block_mode in {"hybrid_prereduce", "mamba_prereduce"}
-        self.use_mamba_sr = bool(use_mamba_sr)
-        self.mamba_sr_upsample_mode = str(mamba_sr_upsample_mode)
         self.use_mamba = self.block_mode in {"hybrid", "hybrid_prereduce", "mamba", "mamba_prereduce"}
         self.use_conv = self.block_mode in {"hybrid", "hybrid_prereduce", "conv"}
 
@@ -506,21 +488,8 @@ class MambaBlock3D(nn.Module):
                 d_conv=d_conv,
                 expand=expand,
             )
-            if self.use_sr and self.use_mamba_sr and not self.use_prereduce:
-                self.mamba_sr = nn.Conv3d(
-                    dim,
-                    dim,
-                    kernel_size=self.sr_ratio,
-                    stride=self.sr_ratio,
-                )
-                self.mamba_sr_norm = nn.LayerNorm(dim)
-            else:
-                self.mamba_sr = None
-                self.mamba_sr_norm = None
         else:
             self.mamba = None
-            self.mamba_sr = None
-            self.mamba_sr_norm = None
 
         if self.use_conv:
             self.conv_branch = LocalConvTokenBranch3D(
@@ -570,45 +539,25 @@ class MambaBlock3D(nn.Module):
 
         B, _, C = x.shape
         x_3d = x.transpose(1, 2).contiguous().reshape(B, C, *source_shape)
-        if self.mamba_sr_upsample_mode in {"linear", "bilinear", "bicubic", "trilinear"}:
-            x_3d = F.interpolate(
-                x_3d,
-                size=target_shape,
-                mode=self.mamba_sr_upsample_mode,
-                align_corners=False,
-            )
-        else:
-            x_3d = F.interpolate(x_3d, size=target_shape, mode=self.mamba_sr_upsample_mode)
+        x_3d = F.interpolate(
+            x_3d,
+            size=target_shape,
+            mode="trilinear",
+            align_corners=False,
+        )
         return x_3d.flatten(2).transpose(1, 2).contiguous()
 
-    def _run_mamba_branch(self, x: Tensor, spatial_shape):
+    def _run_mamba_branch(self, x: Tensor):
         if self.mamba is None:
             raise RuntimeError("Mamba branch requested but not initialized.")
-
-        if self.mamba_sr is None:
-            return self.mamba(x)
-
-        B, N, C = x.shape
-        D, H, W = spatial_shape
-        x_3d = x.transpose(1, 2).contiguous().reshape(B, C, D, H, W)
-        x_3d = self.mamba_sr(x_3d)
-        reduced_shape = x_3d.shape[2:]
-        x_tokens = x_3d.flatten(2).transpose(1, 2).contiguous()
-        x_tokens = self.mamba_sr_norm(x_tokens)
-        y = self.mamba(x_tokens)
-        y = y.transpose(1, 2).contiguous().reshape(B, C, *reduced_shape)
-        if self.mamba_sr_upsample_mode in {"linear", "bilinear", "bicubic", "trilinear"}:
-            y = F.interpolate(y, size=spatial_shape, mode=self.mamba_sr_upsample_mode, align_corners=False)
-        else:
-            y = F.interpolate(y, size=spatial_shape, mode=self.mamba_sr_upsample_mode)
-        return y.flatten(2).transpose(1, 2).contiguous()
+        return self.mamba(x)
 
     def forward(self, x: Tensor, *spatial_shape) -> Tensor:
         D, H, W = _normalize_spatial_shape_args(*spatial_shape)
         z = self.norm1(x)
 
         if self.block_mode == "hybrid":
-            y_m = self._run_mamba_branch(z, (D, H, W))
+            y_m = self._run_mamba_branch(z)
             y_c = self.conv_branch(z, (D, H, W))
             if self.gate is not None:
                 gate = self.gate(torch.cat([y_m, y_c], dim=-1))
@@ -636,7 +585,7 @@ class MambaBlock3D(nn.Module):
             y = self.drop(y)
             y = self._upsample_tokens(y, reduced_shape, (D, H, W))
         elif self.block_mode == "mamba":
-            y = self._run_mamba_branch(z, (D, H, W))
+            y = self._run_mamba_branch(z)
             y = self.fuse(y)
             y = self.drop(y)
         else:
@@ -675,9 +624,6 @@ class MixVisionTransformer(nn.Module):
         expand,
         block_mode="hybrid",
         use_rope=True,
-        use_mamba_sr=False,
-        use_mamba_sr_stages=None,
-        mamba_sr_upsample_mode="trilinear",
         stage_block_types=None,
         num_mamba_replacements=None,
         replacement_block_mode="mamba",
@@ -685,8 +631,6 @@ class MixVisionTransformer(nn.Module):
     ):
         super().__init__()
         self.default_stage_block_mode = _normalize_block_mode(block_mode)
-        self.use_mamba_sr_stages = _normalize_stage_bool_flags(use_mamba_sr_stages, 4, "use_mamba_sr_stages")
-        self.mamba_sr_upsample_mode = mamba_sr_upsample_mode
         self.default_stage_schedule, self.explicit_stage_schedule = _build_encoder_block_schedule(
             depths=depths,
             default_stage_block_mode=self.default_stage_block_mode,
@@ -715,12 +659,10 @@ class MixVisionTransformer(nn.Module):
             num_heads=num_heads[0],
             sr_ratio=sr_ratios[0],
             d_state=d_state[0],
-                d_conv=d_conv[0],
-                expand=expand[0],
-                mlp_ratio=mlp_ratios[0],
-                use_mamba_sr=use_mamba_sr and self.use_mamba_sr_stages[0],
-                mamba_sr_upsample_mode=self.mamba_sr_upsample_mode,
-            )
+            d_conv=d_conv[0],
+            expand=expand[0],
+            mlp_ratio=mlp_ratios[0],
+        )
         self.stage2 = self._make_stage(
             stage_index=1,
             depth=depths[1],
@@ -728,12 +670,10 @@ class MixVisionTransformer(nn.Module):
             num_heads=num_heads[1],
             sr_ratio=sr_ratios[1],
             d_state=d_state[1],
-                d_conv=d_conv[1],
-                expand=expand[1],
-                mlp_ratio=mlp_ratios[1],
-                use_mamba_sr=use_mamba_sr and self.use_mamba_sr_stages[1],
-                mamba_sr_upsample_mode=self.mamba_sr_upsample_mode,
-            )
+            d_conv=d_conv[1],
+            expand=expand[1],
+            mlp_ratio=mlp_ratios[1],
+        )
         self.stage3 = self._make_stage(
             stage_index=2,
             depth=depths[2],
@@ -741,12 +681,10 @@ class MixVisionTransformer(nn.Module):
             num_heads=num_heads[2],
             sr_ratio=sr_ratios[2],
             d_state=d_state[2],
-                d_conv=d_conv[2],
-                expand=expand[2],
-                mlp_ratio=mlp_ratios[2],
-                use_mamba_sr=use_mamba_sr and self.use_mamba_sr_stages[2],
-                mamba_sr_upsample_mode=self.mamba_sr_upsample_mode,
-            )
+            d_conv=d_conv[2],
+            expand=expand[2],
+            mlp_ratio=mlp_ratios[2],
+        )
         self.stage4 = self._make_stage(
             stage_index=3,
             depth=depths[3],
@@ -754,12 +692,10 @@ class MixVisionTransformer(nn.Module):
             num_heads=num_heads[3],
             sr_ratio=sr_ratios[3],
             d_state=d_state[3],
-                d_conv=d_conv[3],
-                expand=expand[3],
-                mlp_ratio=mlp_ratios[3],
-                use_mamba_sr=use_mamba_sr and self.use_mamba_sr_stages[3],
-                mamba_sr_upsample_mode=self.mamba_sr_upsample_mode,
-            )
+            d_conv=d_conv[3],
+            expand=expand[3],
+            mlp_ratio=mlp_ratios[3],
+        )
 
         self.norm4 = nn.LayerNorm(embed_dims[3])
         self.post_gn = nn.ModuleList([nn.GroupNorm(1, ed) for ed in embed_dims])
@@ -783,8 +719,6 @@ class MixVisionTransformer(nn.Module):
         d_conv,
         expand,
         mlp_ratio,
-        use_mamba_sr,
-        mamba_sr_upsample_mode,
     ):
         block_types = self._stage_block_types(stage_index, depth)
         return nn.ModuleList([
@@ -797,8 +731,6 @@ class MixVisionTransformer(nn.Module):
                 d_conv=d_conv,
                 expand=expand,
                 mlp_ratio=mlp_ratio,
-                use_mamba_sr=use_mamba_sr,
-                mamba_sr_upsample_mode=mamba_sr_upsample_mode,
             )
             for block_idx in range(depth)
         ])
@@ -899,9 +831,6 @@ class SegMaFormer(nn.Module):
                 "expand",
                 "block_mode",
                 "use_rope",
-                "use_mamba_sr",
-                "use_mamba_sr_stages",
-                "mamba_sr_upsample_mode",
                 "stage_block_types",
                 "num_mamba_replacements",
                 "replacement_block_mode",

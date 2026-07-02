@@ -79,9 +79,6 @@ class SegMaFormerTrainer_BRATS(nnUNetTrainer):
     block_mode = "hybrid"
     stage_block_types = None
     rope_enabled = True
-    use_mamba_sr = False
-    use_mamba_sr_stages = None
-    mamba_sr_upsample_mode = None
     sr_ratios_override = None
     num_mamba_replacements = None
     replacement_block_mode = "mamba"
@@ -129,11 +126,6 @@ class SegMaFormerTrainer_BRATS(nnUNetTrainer):
         if cls.stage_block_types is not None:
             print(f"🔧 [SegMaFormer] Explicit stage block types: {cls.stage_block_types}")
         print(f"🔧 [SegMaFormer] RoPE enabled: {cls.rope_enabled}")
-        print(f"🔧 [SegMaFormer] Mamba SR enabled: {cls.use_mamba_sr}")
-        if cls.use_mamba_sr_stages is not None:
-            print(f"🔧 [SegMaFormer] Mamba SR stages: {cls.use_mamba_sr_stages}")
-        if cls.mamba_sr_upsample_mode is not None:
-            print(f"🔧 [SegMaFormer] Mamba SR upsample mode: {cls.mamba_sr_upsample_mode}")
         if cls.sr_ratios_override is not None:
             print(f"🔧 [SegMaFormer] Attention sr_ratios override: {cls.sr_ratios_override}")
         if cls.num_mamba_replacements is not None:
@@ -146,9 +138,6 @@ class SegMaFormerTrainer_BRATS(nnUNetTrainer):
             "block_mode": cls.block_mode,
             "stage_block_types": cls.stage_block_types,
             "use_rope": cls.rope_enabled,
-            "use_mamba_sr": cls.use_mamba_sr,
-            "use_mamba_sr_stages": cls.use_mamba_sr_stages,
-            "mamba_sr_upsample_mode": cls.mamba_sr_upsample_mode,
             "sr_ratios": cls.sr_ratios_override,
             "num_mamba_replacements": cls.num_mamba_replacements,
             "replacement_block_mode": cls.replacement_block_mode,
@@ -263,9 +252,6 @@ def _make_stage_mix_trainer(
     stage_block_types,
     sr_ratios_override=None,
     rope_enabled=True,
-    use_mamba_sr=False,
-    use_mamba_sr_stages=None,
-    mamba_sr_upsample_mode=None,
 ):
     return type(
         class_name,
@@ -274,9 +260,6 @@ def _make_stage_mix_trainer(
             "block_mode": "hybrid",
             "stage_block_types": stage_block_types,
             "rope_enabled": rope_enabled,
-            "use_mamba_sr": use_mamba_sr,
-            "use_mamba_sr_stages": use_mamba_sr_stages,
-            "mamba_sr_upsample_mode": mamba_sr_upsample_mode,
             "sr_ratios_override": sr_ratios_override,
             "num_mamba_replacements": None,
         },
@@ -312,18 +295,17 @@ SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention = _make_stage
     ["mamba", "hybrid", "hybrid", "attention"],
 )
 
-SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR = _make_stage_mix_trainer(
+# Backward-compatible trainer names after removing the dead Mamba SR path.
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR = type(
     "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSR",
-    ["mamba", "hybrid", "hybrid", "attention"],
-    use_mamba_sr=True,
+    (SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention,),
+    {},
 )
 
-SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast = _make_stage_mix_trainer(
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast = type(
     "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_MambaSRFast",
-    ["mamba", "hybrid", "hybrid", "attention"],
-    use_mamba_sr=True,
-    use_mamba_sr_stages=[True, False, False, False],
-    mamba_sr_upsample_mode="nearest",
+    (SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention,),
+    {},
 )
 
 SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff = _make_stage_mix_trainer(
