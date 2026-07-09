@@ -22,8 +22,10 @@ Recommended environment:
 - OS: Linux
 - Python: `3.11`
 - GPU: NVIDIA GPU with CUDA support
-- CUDA: `13.x` recommended for this repo
-- PyTorch: install a CUDA-enabled build compatible with CUDA 13 before training
+- CUDA: `13.0`
+- PyTorch: `2.11.0+cu130`
+- PyTorch CUDA wheel: `cu130`
+- CUDA used by PyTorch: `13.0`
 - RAM: at least `32 GB`
 - VRAM: at least `6 GB` recommended for `3d_fullres`
 - Storage: enough space for raw data, preprocessed data, checkpoints, and validation outputs
