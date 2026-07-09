@@ -20,12 +20,12 @@ This README covers:
 Recommended environment:
 
 - OS: Linux
-- Python: `3.10`
+- Python: `3.11`
 - GPU: NVIDIA GPU with CUDA support
-- CUDA: version compatible with your installed PyTorch build
-- PyTorch: install a CUDA-enabled build before training
+- CUDA: `13.x` recommended for this repo
+- PyTorch: install a CUDA-enabled build compatible with CUDA 13 before training
 - RAM: at least `32 GB`
-- VRAM: at least `12 GB` recommended for `3d_fullres`
+- VRAM: at least `6 GB` recommended for `3d_fullres`
 - Storage: enough space for raw data, preprocessed data, checkpoints, and validation outputs
 
 Practical notes:
@@ -44,7 +44,12 @@ conda create -n segmaformer python=3.11 -y
 conda activate segmaformer
 ```
 
-Install PyTorch that matches your CUDA version, then install the project:
+This repo is currently configured around a CUDA 13 software stack. The pinned dependencies in `requirements.txt`
+already include CUDA 13 packages such as `cuda-toolkit==13.0.2`, `cuda-python==13.3.1`,
+`nvidia-cudnn-cu13==9.19.0.56`, `nvidia-cusparselt-cu13==0.8.0`, and `nvidia-nccl-cu13==2.28.9`.
+Make sure your NVIDIA driver and PyTorch installation are compatible with CUDA 13 before continuing.
+
+Install a CUDA 13-compatible PyTorch build, then install the project:
 
 ```bash
 cd nnUNet-Custom
@@ -52,6 +57,12 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 pip install --no-cache-dir --no-build-isolation mamba-ssm
 python -m pip install -e .
+```
+
+Optional CUDA sanity check:
+
+```bash
+python -c "import torch; print('torch', torch.__version__); print('cuda', torch.version.cuda); print('cuda available', torch.cuda.is_available())"
 ```
 
 Check that the nnU-Net commands are available:
