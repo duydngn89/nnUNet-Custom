@@ -44,10 +44,7 @@ conda create -n segmaformer python=3.11 -y
 conda activate segmaformer
 ```
 
-This repo is currently configured around a CUDA 13 software stack. The pinned dependencies in `requirements.txt`
-already include CUDA 13 packages such as `cuda-toolkit==13.0.2`, `cuda-python==13.3.1`,
-`nvidia-cudnn-cu13==9.19.0.56`, `nvidia-cusparselt-cu13==0.8.0`, and `nvidia-nccl-cu13==2.28.9`.
-Make sure your NVIDIA driver and PyTorch installation are compatible with CUDA 13 before continuing.
+This repo is currently configured around a CUDA 13 software stack. Make sure your NVIDIA driver and PyTorch installation are compatible with CUDA 13 before continuing.
 
 Install a CUDA 13-compatible PyTorch build, then install the project:
 
