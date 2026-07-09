@@ -77,8 +77,6 @@ lightning==2.4.0
 lightning-cloud==0.5.70
 lightning-utilities==0.15.2
 linecache2==1.0.0
-mamba==0.11.3
-mamba_ssm @ git+https://github.com/state-spaces/mamba.git@a14b1dff0454a3bc27d9eb31355dc01e4b2490ec
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 matplotlib==3.7.1
