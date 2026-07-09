@@ -320,7 +320,7 @@ Useful files:
 
 ## 11. Validation / Inference
 
-Run validation during training with `--val` if needed:
+Run validation-only after training has finished with `--val` if needed:
 
 ```bash
 nnUNetv2_train 42 3d_fullres 0 \
@@ -334,6 +334,26 @@ After training, check:
 
 - `validation/summary.json`
 - predicted segmentations under the trainer output folder
+
+Run inference from the CLI with placeholder paths:
+
+```bash
+nnUNetv2_predict \
+  -i /path/to/test_images \
+  -o /path/to/predictions \
+  -d 42 \
+  -c 3d_fullres \
+  -tr SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention \
+  -p nnUNetPlans \
+  -f 0 \
+  -chk checkpoint_best.pth
+```
+
+Notes:
+
+- replace `-d` and `-tr` with the dataset ID and trainer you actually trained
+- input filenames must follow nnU-Net channel naming such as `case001_0000.nii.gz`
+- use `CUDA_VISIBLE_DEVICES=0` before `nnUNetv2_predict` if you want to choose a specific GPU
 
 ## 12. Quick Summary
 
