@@ -40,7 +40,7 @@ Practical notes:
 Create and activate a Python environment first. A Conda environment is recommended.
 
 ```bash
-conda create -n segmaformer python=3.10 -y
+conda create -n segmaformer python=3.11 -y
 conda activate segmaformer
 ```
 
@@ -50,6 +50,7 @@ Install PyTorch that matches your CUDA version, then install the project:
 cd nnUNet-Custom
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+pip install --no-cache-dir --no-build-isolation mamba-ssm
 python -m pip install -e .
 ```
 
