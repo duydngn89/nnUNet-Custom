@@ -53,10 +53,10 @@ Install a CUDA 13-compatible PyTorch build, then install the project:
 
 ```bash
 cd nnUNet-Custom
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+pip install --upgrade pip
+pip install -e .
+pip install -r requirements.txt
 pip install --no-cache-dir --no-build-isolation mamba-ssm
-python -m pip install -e .
 ```
 
 Optional CUDA sanity check:
