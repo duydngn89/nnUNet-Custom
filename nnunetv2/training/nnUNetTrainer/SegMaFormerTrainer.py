@@ -231,5 +231,42 @@ class SegMaFormerTrainer_BTCV_Fixed(SegMaFormerTrainer):
     config_filename = "BCTV_config_fixed.yml"
 
 
+class SegMaFormerTrainer_BTCV_RoPEOff(SegMaFormerTrainer):
+    rope_enabled = False
+
+
+class SegMaFormerTrainer_BTCV_Fixed_RoPEOff(SegMaFormerTrainer_BTCV_Fixed):
+    rope_enabled = False
+
+
+class SegMaFormerTrainer_BTCV_AttentionOnly_Fixed(SegMaFormerTrainer_BTCV_Fixed):
+    stage_block_types = ["attention", "attention", "attention", "attention"]
+
+
+class SegMaFormerTrainer_BTCV_Stage1Hybrid_Stage234Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):
+    stage_block_types = ["hybrid", "attention", "attention", "attention"]
+
+
 class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):
     stage_block_types = ["mamba", "hybrid", "hybrid", "attention"]
+
+
+class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage234Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):
+    stage_block_types = ["mamba", "attention", "attention", "attention"]
+
+
+class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage234Attention_Fixed_RoPEOff(
+    SegMaFormerTrainer_BTCV_Fixed
+):
+    stage_block_types = ["mamba", "attention", "attention", "attention"]
+    rope_enabled = False
+
+
+class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed_RoPEOff(
+    SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed
+):
+    rope_enabled = False
+
+
+class SegMaFormerTrainer_BTCV_Stage123Mamba_Stage4Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):
+    stage_block_types = ["mamba", "mamba", "mamba", "attention"]

@@ -10,6 +10,10 @@ class SegMaFormerTrainer_ACDC(ACDCSegMaFormerTrainerBase):
     pass
 
 
+class SegMaFormerTrainer_ACDC_RoPEOff(SegMaFormerTrainer_ACDC):
+    rope_enabled = False
+
+
 class SegMaFormerTrainer_ACDC_LossDiceCE(ACDCSegMaFormerTrainerBase):
     pass
 
@@ -71,6 +75,36 @@ SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed = _make_
 )
 
 
+SegMaFormerTrainer_ACDC_Stage1Mamba_Stage234Attention_Fixed = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage234Attention_Fixed",
+    ["mamba", "attention", "attention", "attention"],
+    config_filename="ACDC_config_fixed.yml",
+)
+
+
+SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff",
+    ["mamba", "hybrid", "hybrid", "attention"],
+    rope_enabled=False,
+)
+
+
+SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed_RoPEOff = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed_RoPEOff",
+    ["mamba", "hybrid", "hybrid", "attention"],
+    config_filename="ACDC_config_fixed.yml",
+    rope_enabled=False,
+)
+
+
+SegMaFormerTrainer_ACDC_Stage1Mamba_Stage234Attention_Fixed_RoPEOff = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage234Attention_Fixed_RoPEOff",
+    ["mamba", "attention", "attention", "attention"],
+    config_filename="ACDC_config_fixed.yml",
+    rope_enabled=False,
+)
+
+
 SegMaFormerTrainer_ACDC_Stage1Hybrid_Stage234Attention = _make_acdc_stage_mix_trainer(
     "SegMaFormerTrainer_ACDC_Stage1Hybrid_Stage234Attention",
     ["hybrid", "attention", "attention", "attention"],
@@ -105,6 +139,19 @@ SegMaFormerTrainer_ACDC_Stage12Hybrid_Stage34Attention_Fixed = _make_acdc_stage_
     "SegMaFormerTrainer_ACDC_Stage12Hybrid_Stage34Attention_Fixed",
     ["hybrid", "hybrid", "attention", "attention"],
     sr_ratios_override=ACDC_ANISOTROPIC_SR_RATIOS,
+    config_filename="ACDC_config_fixed.yml",
+)
+
+
+SegMaFormerTrainer_ACDC_Stage123Mamba_Stage4Attention = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage123Mamba_Stage4Attention",
+    ["mamba", "mamba", "mamba", "attention"],
+)
+
+
+SegMaFormerTrainer_ACDC_Stage123Mamba_Stage4Attention_Fixed = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage123Mamba_Stage4Attention_Fixed",
+    ["mamba", "mamba", "mamba", "attention"],
     config_filename="ACDC_config_fixed.yml",
 )
 

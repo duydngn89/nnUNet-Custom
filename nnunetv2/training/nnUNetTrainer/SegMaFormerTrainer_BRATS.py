@@ -79,6 +79,7 @@ class SegMaFormerTrainer_BRATS(nnUNetTrainer):
     block_mode = "hybrid"
     stage_block_types = None
     rope_enabled = True
+    disable_hybrid_gate = False
     sr_ratios_override = None
     num_mamba_replacements = None
     replacement_block_mode = "mamba"
@@ -126,6 +127,7 @@ class SegMaFormerTrainer_BRATS(nnUNetTrainer):
         if cls.stage_block_types is not None:
             print(f"🔧 [SegMaFormer] Explicit stage block types: {cls.stage_block_types}")
         print(f"🔧 [SegMaFormer] RoPE enabled: {cls.rope_enabled}")
+        print(f"🔧 [SegMaFormer] Hybrid gate enabled: {not cls.disable_hybrid_gate}")
         if cls.sr_ratios_override is not None:
             print(f"🔧 [SegMaFormer] Attention sr_ratios override: {cls.sr_ratios_override}")
         if cls.num_mamba_replacements is not None:
@@ -138,6 +140,7 @@ class SegMaFormerTrainer_BRATS(nnUNetTrainer):
             "block_mode": cls.block_mode,
             "stage_block_types": cls.stage_block_types,
             "use_rope": cls.rope_enabled,
+            "disable_hybrid_gate": cls.disable_hybrid_gate,
             "sr_ratios": cls.sr_ratios_override,
             "num_mamba_replacements": cls.num_mamba_replacements,
             "replacement_block_mode": cls.replacement_block_mode,
@@ -252,6 +255,7 @@ def _make_stage_mix_trainer(
     stage_block_types,
     sr_ratios_override=None,
     rope_enabled=True,
+    disable_hybrid_gate=False,
 ):
     return type(
         class_name,
@@ -260,6 +264,7 @@ def _make_stage_mix_trainer(
             "block_mode": "hybrid",
             "stage_block_types": stage_block_types,
             "rope_enabled": rope_enabled,
+            "disable_hybrid_gate": disable_hybrid_gate,
             "sr_ratios_override": sr_ratios_override,
             "num_mamba_replacements": None,
         },
@@ -312,6 +317,19 @@ SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff = _ma
     "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff",
     ["mamba", "hybrid", "hybrid", "attention"],
     rope_enabled=False,
+)
+
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_GateOff = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_GateOff",
+    ["mamba", "hybrid", "hybrid", "attention"],
+    disable_hybrid_gate=True,
+)
+
+SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff_GateOff = _make_stage_mix_trainer(
+    "SegMaFormerTrainer_BRATS_Stage1Mamba_Stage23Hybrid_Stage4Attention_RoPEOff_GateOff",
+    ["mamba", "hybrid", "hybrid", "attention"],
+    rope_enabled=False,
+    disable_hybrid_gate=True,
 )
 
 SegMaFormerTrainer_BRATS_Stage12Mamba_Stage3Hybrid_Stage4Attention = _make_stage_mix_trainer(

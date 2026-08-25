@@ -34,7 +34,7 @@ def build_dataset_json(dataset_dir: Path, dataset_name: str):
         file_ending=".nii.gz",
         dataset_name=dataset_name,
         overwrite_image_reader_writer="NibabelIOWithReorient"
-    )
+    ) 
 
 # ============================================================
 # BONE LIST (Full coverage)

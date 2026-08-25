@@ -107,6 +107,7 @@ def _build_encoder_block(
     d_conv: int,
     expand: int,
     mlp_ratio: int,
+    disable_hybrid_gate: bool = False,
 ):
     block_type = _normalize_encoder_block_type(block_type)
     if block_type == "attention":
@@ -122,6 +123,7 @@ def _build_encoder_block(
         expand=expand,
         mlp_ratio=mlp_ratio,
         block_mode=block_type,
+        disable_hybrid_gate=disable_hybrid_gate,
     )
 
 
@@ -457,9 +459,11 @@ class MambaBlock3D(nn.Module):
         dropout=0.0,
         layer_scale_init=1e-4,
         block_mode="hybrid",
+        disable_hybrid_gate: bool = False,
     ):
         super().__init__()
         self.block_mode = _normalize_block_mode(block_mode)
+        self.disable_hybrid_gate = bool(disable_hybrid_gate)
         self.sr_ratio = _normalize_sr_ratio(sr_ratio)
         self.use_sr = any(v > 1 for v in self.sr_ratio)
         self.use_prereduce = self.block_mode in {"hybrid_prereduce", "mamba_prereduce"}
@@ -499,7 +503,10 @@ class MambaBlock3D(nn.Module):
         else:
             self.conv_branch = None
 
-        if self.block_mode in {"hybrid", "hybrid_prereduce"}:
+        if (
+            self.block_mode in {"hybrid", "hybrid_prereduce"}
+            and not self.disable_hybrid_gate
+        ):
             self.gate = nn.Sequential(
                 nn.Linear(dim * 2, dim),
                 nn.Sigmoid(),
@@ -627,6 +634,7 @@ class MixVisionTransformer(nn.Module):
         stage_block_types=None,
         num_mamba_replacements=None,
         replacement_block_mode="mamba",
+        disable_hybrid_gate: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -638,6 +646,7 @@ class MixVisionTransformer(nn.Module):
             num_mamba_replacements=num_mamba_replacements,
             replacement_block_mode=replacement_block_mode,
         )
+        self.disable_hybrid_gate = bool(disable_hybrid_gate)
 
         self.embed_1 = PatchEmbedding(
             in_channels, embed_dims[0], patch_kernel_size[0], patch_stride[0], patch_padding[0], use_rope=use_rope
@@ -731,6 +740,7 @@ class MixVisionTransformer(nn.Module):
                 d_conv=d_conv,
                 expand=expand,
                 mlp_ratio=mlp_ratio,
+                disable_hybrid_gate=self.disable_hybrid_gate,
             )
             for block_idx in range(depth)
         ])
@@ -834,6 +844,7 @@ class SegMaFormer(nn.Module):
                 "stage_block_types",
                 "num_mamba_replacements",
                 "replacement_block_mode",
+                "disable_hybrid_gate",
             ]
             if k in kwargs
         }

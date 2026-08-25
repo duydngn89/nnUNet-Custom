@@ -451,6 +451,42 @@ class nnUNetTrainer(object):
             [1.0, 1.0, 1.0],
         ]
 
+    def _build_loss(self):
+        if self.label_manager.has_regions:
+            loss = DC_and_BCE_loss(
+                {},
+                {
+                    "batch_dice": self.configuration_manager.batch_dice,
+                    "do_bg": True,
+                    "smooth": 1e-5,
+                    "ddp": self.is_ddp,
+                },
+                use_ignore_label=self.label_manager.ignore_label is not None,
+                dice_class=MemoryEfficientSoftDiceLoss,
+            )
+        else:
+            loss = DC_and_CE_loss(
+                {
+                    "batch_dice": self.configuration_manager.batch_dice,
+                    "smooth": 1e-5,
+                    "do_bg": False,
+                    "ddp": self.is_ddp,
+                },
+                {},
+                weight_ce=1,
+                weight_dice=1,
+                ignore_label=self.label_manager.ignore_label,
+                dice_class=MemoryEfficientSoftDiceLoss,
+            )
+
+        if self.enable_deep_supervision:
+            weights = np.array([1 / (2**i) for i in range(len(self._get_deep_supervision_scales()))])
+            weights[-1] = 0
+            weights = weights / weights.sum()
+            loss = DeepSupervisionWrapper(loss, weights)
+
+        return loss
+
     def _set_batch_size_and_oversample(self):
         if not self.is_ddp:
             # set batch size to what the plan says, leave oversample untouched

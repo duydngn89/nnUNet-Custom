@@ -106,6 +106,117 @@ class DC_and_BCE_loss(nn.Module):
         return result
 
 
+class DC_and_BCE_and_SoftBandDice_loss(nn.Module):
+    """Region Dice+BCE with a differentiable morphology-based boundary Dice term."""
+    def __init__(
+        self,
+        bce_kwargs,
+        soft_dice_kwargs,
+        weight_ce=1,
+        weight_dice=1,
+        weight_boundary=0.1,
+        boundary_dilation=3,
+        boundary_smooth=1e-5,
+        use_ignore_label: bool = False,
+        dice_class=MemoryEfficientSoftDiceLoss,
+    ):
+        super().__init__()
+        self.base_loss = DC_and_BCE_loss(
+            bce_kwargs,
+            soft_dice_kwargs,
+            weight_ce=weight_ce,
+            weight_dice=weight_dice,
+            use_ignore_label=use_ignore_label,
+            dice_class=dice_class,
+        )
+        self.weight_boundary = float(weight_boundary)
+        self.boundary_dilation = int(boundary_dilation)
+        if self.boundary_dilation < 1:
+            raise ValueError(
+                f"boundary_dilation must be >= 1 for soft-band Dice, got {boundary_dilation}."
+            )
+        self.boundary_smooth = float(boundary_smooth)
+        self.use_ignore_label = bool(use_ignore_label)
+        self.batch_dice = soft_dice_kwargs.get("batch_dice", False)
+
+    @staticmethod
+    def _pool_fn(x: torch.Tensor):
+        spatial_dims = x.ndim - 2
+        if spatial_dims == 2:
+            return F.max_pool2d
+        if spatial_dims == 3:
+            return F.max_pool3d
+        raise ValueError(f"Only 2D and 3D tensors are supported, got shape {tuple(x.shape)}")
+
+    def _soft_boundary_band(self, x: torch.Tensor):
+        kernel_size = 2 * self.boundary_dilation + 1
+        pool = self._pool_fn(x)
+        dilation = pool(
+            x,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=self.boundary_dilation,
+        )
+        erosion = -pool(
+            -x,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=self.boundary_dilation,
+        )
+        return (dilation - erosion).clamp(min=0.0, max=1.0)
+
+    def _target_regions_and_mask(self, target: torch.Tensor):
+        if self.use_ignore_label:
+            if target.dtype == torch.bool:
+                valid_mask = ~target[:, -1:]
+            else:
+                valid_mask = (1 - target[:, -1:]).bool()
+            target_regions = target[:, :-1]
+        else:
+            target_regions = target
+            valid_mask = None
+        return target_regions.float(), valid_mask
+
+    def _soft_band_dice_loss(self, net_output: torch.Tensor, target: torch.Tensor):
+        target_regions, valid_mask = self._target_regions_and_mask(target)
+
+        # Keep the morphology operations in fp32 under AMP. Max-pooling remains
+        # differentiable with respect to the region logits through sigmoid.
+        with torch.autocast(device_type=net_output.device.type, enabled=False):
+            pred_band = self._soft_boundary_band(torch.sigmoid(net_output.float()))
+            target_band = self._soft_boundary_band(target_regions.float())
+            if valid_mask is None:
+                valid_mask = torch.ones_like(target_band[:, :1])
+            else:
+                valid_mask = valid_mask.float()
+
+            reduce_axes = tuple(range(2, net_output.ndim))
+            intersect = (pred_band * target_band * valid_mask).sum(dim=reduce_axes)
+            pred_sum = (pred_band * valid_mask).sum(dim=reduce_axes)
+            target_sum = (target_band * valid_mask).sum(dim=reduce_axes)
+
+            if self.batch_dice:
+                intersect = intersect.sum(dim=0)
+                pred_sum = pred_sum.sum(dim=0)
+                target_sum = target_sum.sum(dim=0)
+
+            valid_regions = target_sum > 0
+            if not valid_regions.any().item():
+                return net_output.new_zeros(())
+
+            dice = (2 * intersect + self.boundary_smooth) / torch.clamp(
+                pred_sum + target_sum + self.boundary_smooth,
+                min=1e-8,
+            )
+            return 1 - dice[valid_regions].mean()
+
+    def forward(self, net_output: torch.Tensor, target: torch.Tensor):
+        loss = self.base_loss(net_output, target)
+        if self.weight_boundary == 0:
+            return loss
+        return loss + self.weight_boundary * self._soft_band_dice_loss(net_output, target)
+
+
 class DC_and_topk_loss(nn.Module):
     def __init__(self, soft_dice_kwargs, ce_kwargs, weight_ce=1, weight_dice=1, ignore_label=None,dice_class=MemoryEfficientSoftDiceLoss):
         """
@@ -246,15 +357,18 @@ class DC_and_CE_and_Boundary_loss(nn.Module):
         ignore_label=None,
         boundary_dilation=3,
         use_class_weights=True,
+        boundary_loss_mode="bce",
+        boundary_smooth=1e-5,
+        boundary_do_bg=None,
     ):
         """
-        Inverse-frequency weighted Dice + CE + masked boundary BCE.
+        Inverse-frequency weighted Dice + CE + masked boundary loss.
 
         Class weights are computed per batch as
             w_c = |Omega| / (N_cls * count_c)
-        and applied to Dice, CE and boundary losses. Boundary BCE is only
-        evaluated inside a dilated class-boundary band and normalized by the
-        number of masked class-voxels to keep the scale stable.
+        and applied to Dice, CE and boundary losses. The boundary term is only
+        evaluated inside a dilated class-boundary band and normalized to keep
+        the scale stable.
         """
         super().__init__()
 
@@ -268,6 +382,14 @@ class DC_and_CE_and_Boundary_loss(nn.Module):
         self.batch_dice = soft_dice_kwargs.get("batch_dice", False)
         self.do_bg = soft_dice_kwargs.get("do_bg", True)
         self.smooth = soft_dice_kwargs.get("smooth", 1.0)
+        self.boundary_loss_mode = str(boundary_loss_mode).strip().lower()
+        if self.boundary_loss_mode not in {"bce", "dice", "soft_band_dice"}:
+            raise ValueError(
+                f"Unsupported boundary_loss_mode '{boundary_loss_mode}'. "
+                "Expected 'bce', 'dice', or 'soft_band_dice'."
+            )
+        self.boundary_smooth = float(boundary_smooth)
+        self.boundary_do_bg = self.do_bg if boundary_do_bg is None else bool(boundary_do_bg)
 
         # Reserved for compatibility with existing call sites.
         self.label_smoothing = ce_kwargs.get("label_smoothing", 0.0)
@@ -397,6 +519,15 @@ class DC_and_CE_and_Boundary_loss(nn.Module):
 
         return boundary & valid_mask.bool()
 
+    def _soft_boundary_band(self, x: torch.Tensor):
+        """Differentiable dilation-minus-erosion boundary band for 2D or 3D maps."""
+        radius = max(int(self.boundary_dilation), 1)
+        kernel_size = 2 * radius + 1
+        pool = self._pool_fn(x)
+        dilation = pool(x, kernel_size=kernel_size, stride=1, padding=radius)
+        erosion = -pool(-x, kernel_size=kernel_size, stride=1, padding=radius)
+        return (dilation - erosion).clamp(min=0.0, max=1.0)
+
     def _boundary_loss(
         self,
         probs: torch.Tensor,
@@ -404,9 +535,9 @@ class DC_and_CE_and_Boundary_loss(nn.Module):
         valid_mask: torch.Tensor,
         class_weights: torch.Tensor,
     ):
-        probs = probs if self.do_bg else probs[:, 1:]
-        target_onehot = target_onehot if self.do_bg else target_onehot[:, 1:]
-        class_weights = class_weights if self.do_bg else class_weights[1:]
+        probs = probs if self.boundary_do_bg else probs[:, 1:]
+        target_onehot = target_onehot if self.boundary_do_bg else target_onehot[:, 1:]
+        class_weights = class_weights if self.boundary_do_bg else class_weights[1:]
 
         if class_weights.numel() == 0:
             return probs.new_zeros(())
@@ -416,17 +547,68 @@ class DC_and_CE_and_Boundary_loss(nn.Module):
         if masked_voxels.item() == 0:
             return probs.new_zeros(())
 
-        # BCE on probabilities is not autocast-safe in PyTorch, so compute the
-        # boundary term in fp32 while preserving the surrounding AMP training flow.
         with torch.autocast(device_type=probs.device.type, enabled=False):
             probs_fp32 = probs.float().clamp(min=1e-6, max=1 - 1e-6)
             target_fp32 = target_onehot.float()
-            class_weights_fp32 = class_weights.float().view(1, -1, *([1] * (probs.ndim - 2)))
             boundary_mask_fp32 = boundary_mask.float()
+            class_weights_fp32 = class_weights.float()
 
-            bce_map = F.binary_cross_entropy(probs_fp32, target_fp32, reduction="none")
-            weighted_bce = bce_map * class_weights_fp32 * boundary_mask_fp32
-            return weighted_bce.sum() / torch.clamp(masked_voxels.float(), min=1.0)
+            if self.boundary_loss_mode == "bce":
+                # BCE on probabilities is not autocast-safe in PyTorch, so compute the
+                # boundary term in fp32 while preserving the surrounding AMP training flow.
+                class_weights_map = class_weights_fp32.view(1, -1, *([1] * (probs.ndim - 2)))
+                bce_map = F.binary_cross_entropy(probs_fp32, target_fp32, reduction="none")
+                weighted_bce = bce_map * class_weights_map * boundary_mask_fp32
+                return weighted_bce.sum() / torch.clamp(masked_voxels.float(), min=1.0)
+
+            if self.boundary_loss_mode == "soft_band_dice":
+                # The prediction band stays differentiable with respect to the
+                # segmentation logits through max-pooling subgradients.
+                pred_boundary = self._soft_boundary_band(probs_fp32)
+                target_boundary = self._soft_boundary_band(target_fp32)
+                loss_mask = valid_mask.float()
+            else:
+                pred_boundary = probs_fp32
+                target_boundary = target_fp32
+                loss_mask = boundary_mask_fp32
+
+            reduce_axes = tuple(range(2, probs.ndim))
+            intersect = (pred_boundary * target_boundary * loss_mask).sum(dim=reduce_axes)
+            pred_sum = (pred_boundary * loss_mask).sum(dim=reduce_axes)
+            target_sum = (target_boundary * loss_mask).sum(dim=reduce_axes)
+
+            if self.batch_dice:
+                intersect = intersect.sum(dim=0)
+                pred_sum = pred_sum.sum(dim=0)
+                target_sum = target_sum.sum(dim=0)
+                valid_classes = target_sum > 0
+                if not valid_classes.any().item():
+                    return probs.new_zeros(())
+                per_class_dice = (2 * intersect + self.boundary_smooth) / torch.clamp(
+                    pred_sum + target_sum + self.boundary_smooth,
+                    min=1e-8,
+                )
+                weights = class_weights_fp32[valid_classes]
+                weighted_dice = (
+                    per_class_dice[valid_classes] * weights
+                ).sum() / torch.clamp(weights.sum(), min=1e-8)
+                return 1 - weighted_dice
+
+            per_class_dice = (2 * intersect + self.boundary_smooth) / torch.clamp(
+                pred_sum + target_sum + self.boundary_smooth,
+                min=1e-8,
+            )
+            valid_classes = target_sum > 0
+            weights = class_weights_fp32.view(1, -1) * valid_classes.float()
+            normalizer = weights.sum(dim=1)
+            valid_samples = normalizer > 0
+            if not valid_samples.any().item():
+                return probs.new_zeros(())
+            weighted_dice = (per_class_dice * weights).sum(dim=1) / torch.clamp(
+                normalizer,
+                min=1e-8,
+            )
+            return 1 - weighted_dice[valid_samples].mean()
 
     def forward(self, net_output: torch.Tensor, target: torch.Tensor):
         target, target_onehot, valid_mask = self._prepare_target(net_output, target)
