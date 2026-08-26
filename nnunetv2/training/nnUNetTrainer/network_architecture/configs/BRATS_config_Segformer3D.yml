@@ -1,4 +1,4 @@
-model_name: SegMaFormer
+model_name: SegFormer3D
 model_parameters:
   in_channels: 4
   sr_ratios: [4, 2, 1, 1]

@@ -10,7 +10,6 @@ from copy import deepcopy
 from datetime import datetime
 from time import time, sleep
 from typing import Tuple, Union, List
-from monai.losses import DiceFocalLoss
 import numpy as np
 import torch
 from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAugmenter
@@ -241,6 +240,20 @@ class SegMaFormerTrainer_BTCV_Fixed_RoPEOff(SegMaFormerTrainer_BTCV_Fixed):
 
 class SegMaFormerTrainer_BTCV_AttentionOnly_Fixed(SegMaFormerTrainer_BTCV_Fixed):
     stage_block_types = ["attention", "attention", "attention", "attention"]
+
+
+# Canonical SegFormer3D baseline: all encoder stages use spatial-reduction
+# attention and BTCV's fixed patch-stride schedule.
+class SegMaFormerTrainer_BTCV_SegFormer3D_FixedStride(
+    SegMaFormerTrainer_BTCV_AttentionOnly_Fixed
+):
+    config_filename = "BCTV_config_Segformer3D_fixed.yml"
+
+
+class SegMaFormerTrainer_BTCV_SegFormer3D_FixedStride_RoPEOff(
+    SegMaFormerTrainer_BTCV_SegFormer3D_FixedStride
+):
+    rope_enabled = False
 
 
 class SegMaFormerTrainer_BTCV_Stage1Hybrid_Stage234Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):

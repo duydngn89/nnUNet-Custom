@@ -62,6 +62,23 @@ SegMaFormerTrainer_ACDC_AttentionOnly_Fixed = _make_acdc_stage_mix_trainer(
 )
 
 
+# Canonical SegFormer3D baseline: all encoder stages use attention with
+# ACDC's fixed patch-stride schedule.
+SegMaFormerTrainer_ACDC_SegFormer3D_FixedStride = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_SegFormer3D_FixedStride",
+    ["attention", "attention", "attention", "attention"],
+    config_filename="ACDC_config_Segformer3D_fixed.yml",
+)
+
+
+SegMaFormerTrainer_ACDC_SegFormer3D_FixedStride_RoPEOff = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_SegFormer3D_FixedStride_RoPEOff",
+    ["attention", "attention", "attention", "attention"],
+    config_filename="ACDC_config_Segformer3D_fixed.yml",
+    rope_enabled=False,
+)
+
+
 SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention = _make_acdc_stage_mix_trainer(
     "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention",
     ["mamba", "hybrid", "hybrid", "attention"],
