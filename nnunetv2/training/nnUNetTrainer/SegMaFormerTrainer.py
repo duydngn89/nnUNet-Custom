@@ -78,6 +78,7 @@ class SegMaFormerTrainer(nnUNetTrainer):
     block_mode = "hybrid"
     stage_block_types = None
     rope_enabled = True
+    disable_hybrid_gate = False
     sr_ratios_override = None
     num_mamba_replacements = None
     replacement_block_mode = "mamba"
@@ -125,6 +126,7 @@ class SegMaFormerTrainer(nnUNetTrainer):
         if cls.stage_block_types is not None:
             print(f"🔧 [SegMaFormer] Explicit stage block types: {cls.stage_block_types}")
         print(f"🔧 [SegMaFormer] RoPE enabled: {cls.rope_enabled}")
+        print(f"🔧 [SegMaFormer] Hybrid gate enabled: {not cls.disable_hybrid_gate}")
         if cls.sr_ratios_override is not None:
             print(f"🔧 [SegMaFormer] Attention sr_ratios override: {cls.sr_ratios_override}")
         if cls.num_mamba_replacements is not None:
@@ -137,6 +139,7 @@ class SegMaFormerTrainer(nnUNetTrainer):
             "block_mode": cls.block_mode,
             "stage_block_types": cls.stage_block_types,
             "use_rope": cls.rope_enabled,
+            "disable_hybrid_gate": cls.disable_hybrid_gate,
             "sr_ratios": cls.sr_ratios_override,
             "num_mamba_replacements": cls.num_mamba_replacements,
             "replacement_block_mode": cls.replacement_block_mode,
@@ -262,6 +265,12 @@ class SegMaFormerTrainer_BTCV_Stage1Hybrid_Stage234Attention_Fixed(SegMaFormerTr
 
 class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):
     stage_block_types = ["mamba", "hybrid", "hybrid", "attention"]
+
+
+class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed_GateOff(
+    SegMaFormerTrainer_BTCV_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed
+):
+    disable_hybrid_gate = True
 
 
 class SegMaFormerTrainer_BTCV_Stage1Mamba_Stage234Attention_Fixed(SegMaFormerTrainer_BTCV_Fixed):

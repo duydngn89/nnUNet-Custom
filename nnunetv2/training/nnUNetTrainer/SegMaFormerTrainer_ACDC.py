@@ -91,6 +91,13 @@ SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed = _make_
     config_filename="ACDC_config_fixed.yml",
 )
 
+SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed_GateOff = _make_acdc_stage_mix_trainer(
+    "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage23Hybrid_Stage4Attention_Fixed_GateOff",
+    ["mamba", "hybrid", "hybrid", "attention"],
+    config_filename="ACDC_config_fixed.yml",
+    disable_hybrid_gate=True,
+)
+
 
 SegMaFormerTrainer_ACDC_Stage1Mamba_Stage234Attention_Fixed = _make_acdc_stage_mix_trainer(
     "SegMaFormerTrainer_ACDC_Stage1Mamba_Stage234Attention_Fixed",
