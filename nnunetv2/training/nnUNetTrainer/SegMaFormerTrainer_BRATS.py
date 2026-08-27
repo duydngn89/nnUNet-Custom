@@ -244,6 +244,14 @@ class SegMaFormerTrainer_BRATS_RoPEOff(SegMaFormerTrainer_BRATS):
     rope_enabled = False
 
 
+class SegMaFormerTrainer_BRATS_SegFormer3D_FixedStride_RoPEOff(SegMaFormerTrainer_BRATS):
+    """Pure-attention SegFormer3D baseline using BRATS_config_Segformer3D.yml."""
+
+    config_filename = "BRATS_config_Segformer3D.yml"
+    stage_block_types = ["attention", "attention", "attention", "attention"]
+    rope_enabled = False
+
+
 class SegMaFormerTrainer_BRATS_SegMaFormer(SegMaFormerTrainer_BRATS):
     config_filename = "BRATS_config_segmaformer.yml"
     stage_block_types = ["attention", "attention", "attention", "attention"]
