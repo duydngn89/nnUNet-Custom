@@ -6,6 +6,12 @@ import torch.nn.functional as F
 
 SUPPORTED_BLOCK_MODES = {"hybrid", "hybrid_prereduce", "mamba", "mamba_prereduce", "conv"}
 SUPPORTED_ENCODER_BLOCK_TYPES = {"attention", *SUPPORTED_BLOCK_MODES}
+CONV_BRANCH_BLOCK_TYPES = {"hybrid", "hybrid_prereduce", "conv"}
+
+
+def make_dilation_schedule(depth: int):
+    """Alternate local and dilated convolution blocks within a stage."""
+    return [1 if block_idx % 2 == 0 else 2 for block_idx in range(depth)]
 
 
 def _normalize_block_mode(block_mode: str) -> str:
@@ -108,6 +114,7 @@ def _build_encoder_block(
     expand: int,
     mlp_ratio: int,
     disable_hybrid_gate: bool = False,
+    conv_dilation: int = 1,
 ):
     block_type = _normalize_encoder_block_type(block_type)
     if block_type == "attention":
@@ -123,6 +130,7 @@ def _build_encoder_block(
         expand=expand,
         mlp_ratio=mlp_ratio,
         block_mode=block_type,
+        conv_dilation=conv_dilation,
         disable_hybrid_gate=disable_hybrid_gate,
     )
 
@@ -402,9 +410,17 @@ class TransformerBlock(nn.Module):
 
 
 class LocalConvTokenBranch3D(nn.Module):
-    def __init__(self, dim, dropout=0.0):
+    def __init__(self, dim, dilation=1, dropout=0.0):
         super().__init__()
-        self.dw = nn.Conv3d(dim, dim, kernel_size=3, padding=1, groups=dim, bias=False)
+        self.dw = nn.Conv3d(
+            dim,
+            dim,
+            kernel_size=3,
+            padding=dilation,
+            dilation=dilation,
+            groups=dim,
+            bias=False,
+        )
         self.norm = nn.InstanceNorm3d(dim, affine=True)
         self.act = nn.GELU()
         self.pw = nn.Conv3d(dim, dim, kernel_size=1, bias=False)
@@ -460,6 +476,7 @@ class MambaBlock3D(nn.Module):
         layer_scale_init=1e-4,
         block_mode="hybrid",
         disable_hybrid_gate: bool = False,
+        conv_dilation=1,
     ):
         super().__init__()
         self.block_mode = _normalize_block_mode(block_mode)
@@ -498,6 +515,7 @@ class MambaBlock3D(nn.Module):
         if self.use_conv:
             self.conv_branch = LocalConvTokenBranch3D(
                 dim=dim,
+                dilation=conv_dilation,
                 dropout=dropout,
             )
         else:
@@ -507,11 +525,15 @@ class MambaBlock3D(nn.Module):
             self.block_mode in {"hybrid", "hybrid_prereduce"}
             and not self.disable_hybrid_gate
         ):
+            self.norm_ssm = nn.LayerNorm(dim)
+            self.norm_conv = nn.LayerNorm(dim)
             self.gate = nn.Sequential(
                 nn.Linear(dim * 2, dim),
                 nn.Sigmoid(),
             )
         else:
+            self.norm_ssm = None
+            self.norm_conv = None
             self.gate = None
 
         self.fuse = nn.Linear(dim, dim)
@@ -567,6 +589,8 @@ class MambaBlock3D(nn.Module):
             y_m = self._run_mamba_branch(z)
             y_c = self.conv_branch(z, (D, H, W))
             if self.gate is not None:
+                y_m = self.norm_ssm(y_m)
+                y_c = self.norm_conv(y_c)
                 gate = self.gate(torch.cat([y_m, y_c], dim=-1))
                 y = gate * y_m + (1.0 - gate) * y_c
             else:
@@ -578,6 +602,8 @@ class MambaBlock3D(nn.Module):
             y_m = self.mamba(z_reduced)
             y_c = self.conv_branch(z_reduced, reduced_shape)
             if self.gate is not None:
+                y_m = self.norm_ssm(y_m)
+                y_c = self.norm_conv(y_c)
                 gate = self.gate(torch.cat([y_m, y_c], dim=-1))
                 y = gate * y_m + (1.0 - gate) * y_c
             else:
@@ -730,6 +756,7 @@ class MixVisionTransformer(nn.Module):
         mlp_ratio,
     ):
         block_types = self._stage_block_types(stage_index, depth)
+        dilation_schedule = make_dilation_schedule(depth)
         return nn.ModuleList([
             _build_encoder_block(
                 block_type=block_types[block_idx],
@@ -740,6 +767,11 @@ class MixVisionTransformer(nn.Module):
                 d_conv=d_conv,
                 expand=expand,
                 mlp_ratio=mlp_ratio,
+                conv_dilation=(
+                    dilation_schedule[block_idx]
+                    if block_types[block_idx] in CONV_BRANCH_BLOCK_TYPES
+                    else 1
+                ),
                 disable_hybrid_gate=self.disable_hybrid_gate,
             )
             for block_idx in range(depth)
